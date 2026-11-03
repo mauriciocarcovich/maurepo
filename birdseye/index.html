@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ecebe5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bird’s-Eye">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<title>Bird’s-Eye</title>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M13 3.5V8h5"/><path d="M9 13h6M9 16.5h4"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9"/><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9"/><path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></symbol>
+  <symbol id="i-notes" viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="3"/><path d="M9 3.5v17"/><path d="M12.5 8.5h3.5M12.5 12h3.5"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4 4 10-10"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path d="M20 10L10 20"/><path d="M20 16l-4 4"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6H10l2 2h6.5A1.5 1.5 0 0 1 20 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/></symbol>
+</svg>
+
+<div id="viewport" aria-label="Document canvas. Drag to pan, pinch to zoom."><div id="world"></div></div>
+
+<button id="docBar" class="bar glass" type="button" title="Open a PDF">
+  <span class="doc-icon"><svg class="icon"><use href="#i-doc"/></svg></span>
+  <span class="doc-text"><span class="doc-title" id="docTitle">Bird’s-Eye</span><span class="doc-sub" id="docSub">No document</span></span>
+</button>
+
+<div id="viewBar" class="bar glass" role="toolbar" aria-label="View">
+  <button class="ib" id="zoomOut" type="button" aria-label="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
+  <span id="zoomPct" aria-label="Zoom level">100%</span>
+  <button class="ib" id="zoomIn" type="button" aria-label="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
+  <button class="tb" id="fitAll" type="button"><svg class="icon"><use href="#i-fit"/></svg><span id="fitLabel">Fit all</span></button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="ib" id="notesToggle" type="button" aria-label="Notes" aria-pressed="true"><svg class="icon"><use href="#i-notes"/></svg></button>
+  <button class="ib" id="moreBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false"><svg class="icon" style="fill:currentColor"><use href="#i-more"/></svg></button>
+</div>
+
+<div id="menu" class="glass" role="menu" hidden>
+  <button type="button" role="menuitem" data-act="open">Open PDF…</button>
+  <button type="button" role="menuitem" data-act="exportMd">Export notes (.md)</button>
+  <div class="sep-h" role="separator"></div>
+  <button type="button" role="menuitem" data-act="backup">Back up workspace (.json)</button>
+  <button type="button" role="menuitem" data-act="restore">Restore backup…</button>
+  <div class="sep-h" role="separator"></div>
+  <button type="button" role="menuitem" data-act="debug">Show debug overlay</button>
+</div>
+
+<section id="notes" aria-label="Notes">
+  <div id="notesHead">
+    <span class="grabber" aria-hidden="true"></span>
+    <h2>Notes</h2>
+    <button class="round" id="notesMin" type="button" aria-label="Minimize notes"><svg class="icon" style="width:16px;height:16px;stroke-width:2.2"><use href="#i-minus"/></svg></button>
+  </div>
+  <div id="notesBody">
+    <textarea id="general" aria-label="Notes" spellcheck="true" placeholder="Write freely… Your notes stay put while you pan and zoom."></textarea>
+    <div id="linked">
+      <button id="linkedToggle" type="button" aria-expanded="false" aria-controls="linkedList">
+        <svg class="chev icon"><use href="#i-chev"/></svg>
+        <span class="label">Linked passages</span>
+        <span class="count" id="linkedCount">0</span>
+        <span class="act" id="linkedAct">Show</span>
+      </button>
+      <p id="linkedList" hidden>Highlights and notes linked to passages arrive in the next build. They will collect here, and this section stays hidden unless you open it.</p>
+    </div>
+  </div>
+  <div id="notesFoot">
+    <span id="saveState"><svg class="icon"><use href="#i-check"/></svg><span id="saveText">Saved on this device</span></span>
+    <button class="soft-btn" id="exportBtn" type="button">Export</button>
+  </div>
+  <button id="notesResize" type="button" aria-label="Resize notes"><svg class="icon" style="width:16px;height:16px;stroke-width:2.4"><use href="#i-grip"/></svg></button>
+</section>
+<button id="notesPill" class="glass" type="button" hidden><svg class="icon"><use href="#i-notes"/></svg>Notes</button>
+
+<div id="empty" class="glass" hidden>
+  <span class="big-icon"><svg class="icon" style="width:30px;height:30px;stroke-width:1.7"><use href="#i-doc"/></svg></span>
+  <h2>Open a PDF</h2>
+  <p>Choose a file from Files, or drop one here. It is stored on this device only.</p>
+  <button class="primary" id="emptyOpen" type="button"><svg class="icon"><use href="#i-open"/></svg>Choose PDF</button>
+</div>
+
+<div id="hint" class="glass" aria-hidden="true">Drag to pan · Pinch to zoom · Tap a page to read it · Double-tap to return</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="drop" hidden>Drop a PDF to open it</div>
+<pre id="debug" class="glass" hidden></pre>
+
+<input id="filePick" type="file" accept="application/pdf,.pdf" hidden>
+<input id="backupPick" type="file" accept="application/json,.json" hidden>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
