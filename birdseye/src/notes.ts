@@ -31,6 +31,7 @@ export class NotesPanel {
   private filter: Tag | null = null;
   private peek: string | null = null;
   private active: string | null = null;
+  private matches = new Set<string>();
   private cardEls = new Map<string, HTMLElement>();
   private cardsBox = byId("cards");
   private chipsBox = byId("linkedChips");
@@ -93,6 +94,22 @@ export class NotesPanel {
     this.linked = all.filter((a) => a.note !== null).sort((a, b) => a.page - b.page || a.start - b.start);
     if (this.peek && !this.linked.some((a) => a.id === this.peek)) this.peek = null;
     this.renderLinked();
+  }
+
+  /** Mark cards that match a notes search. */
+  setMatches(ids: Set<string>) { this.matches = ids; this.renderLinked(); }
+
+  /** Select a range in the general notes and scroll it into view. */
+  showGeneral(start: number, end: number) {
+    if (this.geom.min) this.setMinimized(false);
+    const t = this.text;
+    t.focus({ preventScroll: true });
+    t.setSelectionRange(start, end);
+    // Scroll so the selection is visible: measure with a hidden mirror of the text up to `start`.
+    const lh = parseFloat(getComputedStyle(t).lineHeight) || 24;
+    const before = t.value.slice(0, start);
+    const approxLines = before.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil((line.length * 8.2) / Math.max(120, t.clientWidth - 32))), 0);
+    t.scrollTop = Math.max(0, approxLines * lh - t.clientHeight / 2);
   }
 
   /** Bring a linked note into view (opening the panel, or peeking at one card if the list is hidden). */
@@ -176,6 +193,7 @@ export class NotesPanel {
     const ta = el.querySelector("textarea")!;
     if (document.activeElement !== ta && ta.value !== (a.note ?? "")) ta.value = a.note ?? "";
     el.classList.toggle("active", this.active === a.id);
+    el.classList.toggle("match", this.matches.has(a.id) && this.active !== a.id);
   }
 
   private bind() {

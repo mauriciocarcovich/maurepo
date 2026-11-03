@@ -121,6 +121,21 @@ export function wordAt(pt: PageText, at: number): [number, number] | null {
   return [a, b];
 }
 
+/** The biggest-type line on a page — usually the title on a first page. */
+export function largestLine(pt: PageText): string | null {
+  if (!pt.runs.length) return null;
+  const maxH = Math.max(...pt.runs.map((r) => r.h));
+  const big = pt.runs.filter((r) => r.h >= maxH * 0.85);
+  // Take the first block of big runs (they may wrap over two or three lines).
+  const first = big[0];
+  const block = big.filter((r) => r.y - first.y < maxH * 3.5 && r.y >= first.y - maxH * 0.5);
+  const text = block.map((r) => pt.text.slice(r.start, r.start + r.len)).join(" ").replace(/\s+/g, " ").trim();
+  const hs = pt.runs.map((r) => r.h).sort((x, y) => x - y);
+  const median = hs[Math.floor(hs.length / 2)];
+  // Only trust it if it is clearly bigger than the body text.
+  return text.length >= 3 && text.length <= 140 && maxH >= median * 1.25 ? text : null;
+}
+
 export function quoteOf(pt: PageText, a: number, b: number) {
   if (b < a) [a, b] = [b, a];
   const clean = (s: string) => s.replace(/\s+/g, " ");

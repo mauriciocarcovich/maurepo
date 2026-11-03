@@ -4,14 +4,17 @@ import { bestLayout, freeRegion, layoutPages, type Camera, type Rect } from "./g
 import { NotesPanel } from "./notes";
 import { closePdf, meaninglessName, openPdf, pageSizes, pdfTitle, type PDFDocumentProxy } from "./pdf";
 import { Annotator, TAGS, type Annotation } from "./annotations";
+import { Search } from "./search";
+import { largestLine } from "./text";
 import {
   flushAnnotations, flushWorkspace, getDoc, loadAnnotations, loadWorkspace, onSaveState, putDoc, requestPersistence,
-  saveAnnotations, saveWorkspace, sha256, type DocMeta, type Workspace,
+  saveAnnotations, saveWorkspace, sha256, updateDocMeta, type DocMeta, type Workspace,
 } from "./store";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const TOP = 76; // below the top bar
+const TOP_SEARCH = 136; // below the top bar and the search bar
 const BOTTOM = 16;
 
 let ws: Workspace;
@@ -21,10 +24,11 @@ let doc: PDFDocumentProxy | null = null;
 let meta: DocMeta | null = null;
 let title = "";
 let annot: Annotator;
+let search: Search;
 
 function region(): Rect {
   const view = { w: window.innerWidth, h: window.innerHeight };
-  return freeRegion(view, notes?.rect() ?? null, TOP, BOTTOM);
+  return freeRegion(view, notes?.rect() ?? null, search?.open ? TOP_SEARCH : TOP, BOTTOM);
 }
 
 function save(delay?: number) { saveWorkspace({ ...ws, general: notes.value }, delay); }
@@ -51,6 +55,10 @@ function updateChrome() {
   $("zoomPct").textContent = fit ? Math.round((board.cam.s / fit.s) * 100) + "%" : "—";
   placeCentered($("hint"));
   placeCentered($("empty"));
+  const r = region(), sb = $("searchBar");
+  const w = Math.min(640, r.w - 16);
+  sb.style.width = w + "px";
+  sb.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.x + r.w / 2 - w / 2)) + "px";
 }
 
 function setDocLabel() {
@@ -88,11 +96,13 @@ async function showDocument(m: DocMeta, file: Blob, restore: boolean) {
   const list = await loadAnnotations<Annotation>(m.id);
   annot.setDocument(doc, list);
   notes.setLinked(list);
-  title = m.name.replace(/\.pdf$/i, "");
+  title = m.title || m.name.replace(/\.pdf$/i, "");
   setDocLabel();
-  if (meaninglessName(m.name)) {
-    const t = await pdfTitle(doc);
-    if (t) { title = t; setDocLabel(); }
+  search.reset();
+  if (!m.title && meaninglessName(m.name)) {
+    // The file name says nothing: use the PDF's stored title, else the biggest heading on page 1.
+    const t = (await pdfTitle(doc)) ?? largestLine(await annot.pageText(0));
+    if (t && meta?.id === m.id) { title = t; setDocLabel(); }
   }
   if (restore && ws.view) board.restoreView(ws.view);
   else board.fit(false);
@@ -250,6 +260,21 @@ async function boot() {
     cancel: () => annot.selectCancel(),
     tap: (t, p, pt, sel, z) => annot.tap(t, p, pt, sel, z),
   };
+  search = new Search(board, {
+    pageText: (i) => annot.pageText(i),
+    pageCount: () => board.layout?.pages.length ?? 0,
+    annotations: () => annot.list,
+    general: () => notes.value,
+    showGeneral: (a, b) => notes.showGeneral(a, b),
+    showNote(id) {
+      notes.focusCard(id);
+      const c = annot.center(id);
+      if (c) { board.flyTo(c.x, c.y, Math.max(board.cam.s, board.pageScale(c.page) ?? board.cam.s)); setTimeout(() => annot.flash(id), 560); }
+    },
+    highlightNotes: (ids) => notes.setMatches(ids),
+    onOpenChange: () => { updateChrome(); if (meta && !board.zoomedIn) board.fit(); },
+  });
+  $("searchBtn").onclick = () => search.toggle();
   $("modePan").onclick = () => setMode("pan");
   $("modeSelect").onclick = () => setMode("select");
 
@@ -270,6 +295,10 @@ async function boot() {
     setMenu(false);
     if (act === "open") $<HTMLInputElement>("filePick").click();
     else if (act === "exportMd") exportMarkdown();
+    else if (act === "rename" && meta) {
+      const t = prompt("Document name", title)?.trim();
+      if (t) { title = t; meta.title = t; void updateDocMeta(meta); setDocLabel(); }
+    }
     else if (act === "backup") exportBackup();
     else if (act === "restore") $<HTMLInputElement>("backupPick").click();
     else if (act === "debug") { ws.debug = !ws.debug; save(); renderDebug(); syncDebugLabel(); }

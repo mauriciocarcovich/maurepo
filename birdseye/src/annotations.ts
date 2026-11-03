@@ -77,6 +77,8 @@ export class Annotator {
   /** Load text for pages before the user selects on them. */
   preload(pages: number[]) { for (const p of pages) void this.text(p); }
 
+  pageText(i: number): Promise<PageText> { return this.text(i); }
+
   private text(i: number): Promise<PageText> {
     let p = this.texts.get(i);
     if (!p) {

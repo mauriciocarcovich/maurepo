@@ -37,3 +37,23 @@ describe("text index", () => {
     expect(q.prefix.endsWith("is ")).toBe(true);
   });
 });
+
+import { largestLine } from "../src/text";
+describe("title from the first page", () => {
+  it("uses the clearly biggest line", () => {
+    const body = "Body text line.";
+    const title = "The Race Worth Winning";
+    const t: PageText = {
+      text: title + "\n" + body + "\n" + body,
+      runs: [
+        { start: 0, len: title.length, x: 20, y: 10, w: 200, h: 16, cx: even(title.length) },
+        { start: title.length + 1, len: body.length, x: 20, y: 40, w: 100, h: 9, cx: even(body.length) },
+        { start: title.length + 2 + body.length, len: body.length, x: 20, y: 52, w: 100, h: 9, cx: even(body.length) },
+      ],
+    };
+    expect(largestLine(t)).toBe(title);
+  });
+  it("returns null when nothing stands out", () => {
+    expect(largestLine(pt)).toBeNull();
+  });
+});

@@ -7,6 +7,8 @@ export interface DocMeta {
   bytes: number;
   pageSizes: { w: number; h: number }[];
   addedAt: number;
+  /** A name the user chose with "Rename document…". */
+  title?: string;
 }
 
 /** Notes panel geometry, stored as fractions of the screen so it survives rotation and browser chrome. */
@@ -100,6 +102,10 @@ export async function putDoc(meta: DocMeta, file: Blob) {
   const d = await db();
   const tx = d.transaction(["docs", "files"], "readwrite");
   await Promise.all([tx.objectStore("docs").put(meta, meta.id), tx.objectStore("files").put(file, meta.id), tx.done]);
+}
+
+export async function updateDocMeta(meta: DocMeta) {
+  try { await (await db()).put("docs", meta, meta.id); } catch { /* best effort */ }
 }
 
 export async function getDoc(id: string) {

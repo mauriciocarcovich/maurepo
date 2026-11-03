@@ -31,6 +31,9 @@
   <symbol id="i-under" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M5 20h14"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M10 7V5h4v2"/><path d="M7 7l1 13h8l1-13"/></symbol>
   <symbol id="i-go" viewBox="0 0 24 24"><path d="M8 16L16 8"/><path d="M9.5 8H16v6.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-open" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6H10l2 2h6.5A1.5 1.5 0 0 1 20 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/></symbol>
 </svg>
 
@@ -48,6 +51,8 @@
 </div>
 
 <div id="viewBar" class="bar glass" role="toolbar" aria-label="View">
+  <button class="ib" id="searchBtn" type="button" aria-label="Search (⌘F)" aria-pressed="false"><svg class="icon"><use href="#i-search"/></svg></button>
+  <span class="sep" aria-hidden="true"></span>
   <button class="ib" id="zoomOut" type="button" aria-label="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
   <span id="zoomPct" aria-label="Zoom level">100%</span>
   <button class="ib" id="zoomIn" type="button" aria-label="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
@@ -59,6 +64,7 @@
 
 <div id="menu" class="glass" role="menu" hidden>
   <button type="button" role="menuitem" data-act="open">Open PDF…</button>
+  <button type="button" role="menuitem" data-act="rename">Rename document…</button>
   <button type="button" role="menuitem" data-act="exportMd">Export notes (.md)</button>
   <div class="sep-h" role="separator"></div>
   <button type="button" role="menuitem" data-act="backup">Back up workspace (.json)</button>
@@ -103,6 +109,18 @@
 </div>
 
 <div id="hint" class="glass" aria-hidden="true">Drag to pan · Pinch to zoom · Tap a page to read it · Double-tap to return</div>
+<div id="searchBar" class="glass" role="search" hidden>
+  <svg class="icon" style="width:18px;height:18px;color:var(--ink-2)"><use href="#i-search"/></svg>
+  <input id="searchInput" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search…" aria-label="Search text">
+  <div class="seg" role="group" aria-label="Search in">
+    <button type="button" id="scopeDoc" aria-pressed="true">Document</button>
+    <button type="button" id="scopeNotes" aria-pressed="false">My notes</button>
+  </div>
+  <span id="searchSummary" aria-live="polite"></span>
+  <button type="button" class="nav" id="searchPrev" aria-label="Previous match"><svg class="icon" style="width:18px;height:18px"><use href="#i-up"/></svg></button>
+  <button type="button" class="nav" id="searchNext" aria-label="Next match"><svg class="icon" style="width:18px;height:18px"><use href="#i-down"/></svg></button>
+  <button type="button" id="searchDone">Done</button>
+</div>
 <div id="annPop" class="glass" role="toolbar" aria-label="Highlight options" hidden>
   <button type="button" class="dot" data-tag="yellow" aria-label="Important" style="--ring:#F5C400"><span style="background:#F5C400"></span></button>
   <button type="button" class="dot" data-tag="blue" aria-label="Question" style="--ring:#32ADE6"><span style="background:#32ADE6"></span></button>

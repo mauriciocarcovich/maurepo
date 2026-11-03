@@ -210,3 +210,21 @@ body.select-mode #viewport { cursor: text; }
 .card .go .icon { width: 16px; height: 16px; stroke-width: 2.1; }
 .card .quote { border: 0; background: transparent; padding: 0; text-align: left; font-size: 13px; line-height: 1.5; color: #4a545d; font-style: italic; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .card textarea { width: 100%; resize: none; border: 0; outline: none; padding: 8px 10px; border-radius: 14px; background: rgba(118,118,128,.07); font-size: 15px; line-height: 1.5; color: var(--ink); field-sizing: content; min-height: 58px; -webkit-user-select: text; user-select: text; }
+
+/* ---------- Search ---------- */
+#searchBar { position: fixed; z-index: 35; top: calc(max(14px, env(safe-area-inset-top)) + 62px); height: 52px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 16px; border-radius: 26px; background: var(--glass-strong); }
+#searchBar[hidden] { display: none; }
+#searchInput { flex: 1; min-width: 60px; height: 40px; border: 0; outline: none; background: transparent; font-size: 16px; -webkit-user-select: text; user-select: text; }
+#searchInput::-webkit-search-cancel-button { -webkit-appearance: none; }
+#searchBar .seg { display: flex; padding: 3px; border-radius: 18px; background: var(--fill); flex: none; }
+#searchBar .seg button { height: 34px; padding: 0 12px; border: 0; border-radius: 15px; background: transparent; color: #4a545d; font-size: 13px; font-weight: 600; }
+#searchBar .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 3px 10px rgba(0,0,0,.08); }
+#searchSummary { min-width: 104px; text-align: center; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#searchBar .nav { width: 40px; height: 40px; border: 0; border-radius: 20px; background: var(--fill-2); display: flex; align-items: center; justify-content: center; flex: none; }
+#searchDone { height: 40px; padding: 0 12px; border: 0; border-radius: 20px; background: transparent; color: var(--accent); font-size: 15px; font-weight: 600; flex: none; }
+@media (max-width: 760px) { #searchSummary { min-width: 0; } #searchBar .seg button { padding: 0 9px; } }
+.page > .hits { position: absolute; inset: 0; pointer-events: none; }
+.page > .hits div { position: absolute; border-radius: 1.5px; background: rgba(0,113,227,.16); box-shadow: 0 0 0 max(0.6px, calc(1px * var(--inv))) rgba(0,113,227,.7); }
+.page > .hits div.cur { background: rgba(0,113,227,.45); box-shadow: 0 0 0 max(1px, calc(2px * var(--inv))) var(--accent); }
+.page > .badge { position: absolute; right: -14px; top: -14px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 14px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 4px 12px rgba(20,30,40,.18); transform: scale(var(--inv)); transform-origin: 50% 50%; pointer-events: none; z-index: 2; }
+.card.match { box-shadow: 0 0 0 1.5px rgba(0,113,227,.5), 0 2px 8px rgba(30,40,50,.06); }
