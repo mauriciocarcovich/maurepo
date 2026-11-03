@@ -24,13 +24,15 @@
 
 * { box-sizing: border-box; }
 html, body {
+  touch-action: none; /* only the canvas zooms; Safari must never zoom the page */
   margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
   background: var(--canvas); color: var(--ink); font-family: var(--font);
   -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
 button, input, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
+textarea { touch-action: pan-y; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .glass {
   background: var(--glass);
@@ -72,13 +74,18 @@ button { cursor: pointer; }
 }
 
 /* ---------- Top bar ---------- */
-.bar { position: fixed; top: max(14px, env(safe-area-inset-top)); z-index: 30; height: 52px; display: flex; align-items: center; border-radius: 26px; }
-#docBar { left: 14px; gap: 10px; padding: 0 18px 0 8px; max-width: calc(100vw - 440px); border: 0; text-align: left; color: var(--ink); }
+.bar { height: 52px; display: flex; align-items: center; border-radius: 26px; flex: none; }
+#topLeft { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 14px; z-index: 30; display: flex; gap: 10px; max-width: calc(100vw - 440px); }
+#docBar { gap: 10px; padding: 0 18px 0 8px; min-width: 0; flex: 0 1 auto; border: 0; text-align: left; color: var(--ink); }
+#modeBar { gap: 2px; padding: 0 6px; }
+#modeBar button { height: 40px; padding: 0 14px; border: 0; border-radius: 20px; background: transparent; color: #4a545d; display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; }
+#modeBar button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 3px 10px rgba(0,0,0,.08); }
+body.select-mode #viewport { cursor: text; }
 #docBar .doc-icon { width: 36px; height: 36px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex: none; }
 #docBar .doc-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
 #docBar .doc-title { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #docBar .doc-sub { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-#viewBar { right: 14px; gap: 2px; padding: 0 4px; }
+#viewBar { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 14px; z-index: 30; gap: 2px; padding: 0 4px; }
 .ib { width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: var(--ink); display: flex; align-items: center; justify-content: center; }
 .ib:hover { background: var(--fill-2); }
 .ib[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
@@ -122,7 +129,7 @@ button { cursor: pointer; }
 #notesHead h2 { margin: 0; flex: 1; font-size: 20px; font-weight: 700; letter-spacing: -0.015em; }
 .round { width: 36px; height: 36px; border: 0; border-radius: 18px; background: var(--fill); color: var(--ink-3); display: flex; align-items: center; justify-content: center; }
 #notesBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 2px 14px 12px; }
-#general { flex: 1; min-height: 0; width: 100%; resize: none; border: 0; outline: none; border-radius: 20px; padding: 14px 16px; background: #fff; font-size: 16px; line-height: 1.55; color: var(--ink); box-shadow: 0 0 0 0.5px rgba(30, 40, 50, 0.06), 0 2px 8px rgba(30, 40, 50, 0.05); -webkit-user-select: text; user-select: text; }
+#general { flex: 1; min-height: 88px; width: 100%; resize: none; border: 0; outline: none; border-radius: 20px; padding: 14px 16px; background: #fff; font-size: 16px; line-height: 1.55; color: var(--ink); box-shadow: 0 0 0 0.5px rgba(30, 40, 50, 0.06), 0 2px 8px rgba(30, 40, 50, 0.05); -webkit-user-select: text; user-select: text; }
 #general:focus { box-shadow: 0 0 0 2px var(--accent-soft), 0 2px 8px rgba(30, 40, 50, 0.05); }
 #linked { flex: none; display: flex; flex-direction: column; gap: 10px; }
 #linkedToggle { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 10px; border: 0; border-radius: 16px; background: var(--fill-2); text-align: left; }
@@ -147,8 +154,59 @@ button { cursor: pointer; }
 #debug { position: fixed; right: 14px; bottom: 14px; z-index: 50; padding: 10px 12px; border-radius: 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-3); white-space: pre; pointer-events: none; }
 #debug[hidden] { display: none; }
 
+@media (max-width: 1100px) {
+  #docBar .doc-sub { display: none; }
+}
+@media (max-width: 900px) {
+  #modeBar .lbl { display: none; }
+  #modeBar button { padding: 0 11px; }
+}
 @media (max-width: 720px) {
-  #docBar { max-width: calc(100vw - 250px); }
+  #topLeft { max-width: calc(100vw - 250px); }
   #docBar .doc-sub, #fitLabel { display: none; }
   #hint { display: none; }
 }
+
+/* ---------- Annotations ---------- */
+.page > .ann, .page > .sel { position: absolute; inset: 0; pointer-events: none; }
+.page > .ann .mark { position: absolute; border-radius: 1.5px; mix-blend-mode: multiply; pointer-events: auto; }
+.page > .ann .mark.u { mix-blend-mode: normal; }
+.page > .ann .mark.flash { animation: annFlash 1.6s ease-out 1; }
+@keyframes annFlash { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,113,227,0); } 25% { box-shadow: 0 0 0 calc(5px * var(--inv)) rgba(0,113,227,.35); } }
+.page > .sel div { position: absolute; background: rgba(0,113,227,.24); border-radius: 1.5px; }
+.page > .ann .pin {
+  position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; padding: 0; border: 2px solid #fff; border-radius: 11px;
+  color: #fff; display: flex; align-items: center; justify-content: center; pointer-events: auto;
+  box-shadow: 0 3px 8px rgba(20,30,40,.25); transform: scale(var(--inv)); transform-origin: 50% 50%;
+}
+.page > .ann .pin .icon { width: 11px; height: 11px; stroke-width: 3; }
+
+#annPop { position: fixed; z-index: 40; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 24px; background: var(--glass-strong); }
+#annPop[hidden] { display: none; }
+#annPop .dot { width: 40px; height: 40px; border: 0; padding: 0; border-radius: 20px; background: transparent; display: flex; align-items: center; justify-content: center; }
+#annPop .dot span { width: 22px; height: 22px; border-radius: 11px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+#annPop .dot[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ring, #999); }
+#popTag { min-width: 72px; padding: 0 6px 0 4px; font-size: 13.5px; font-weight: 600; color: var(--ink-3); }
+#annPop .ib { width: 40px; height: 40px; }
+#popNote { height: 40px; padding: 0 16px 0 12px; border: 0; border-radius: 20px; background: var(--accent); color: #fff; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 650; white-space: nowrap; }
+
+/* ---------- Linked passages ---------- */
+#linked { min-height: 0; }
+#linked.open, #linked.peek { flex: 0 1 auto; max-height: calc(100% - 100px); }
+#linkedChips { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+#linkedChips[hidden] { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px 0 10px; border: 0; border-radius: 18px; font-size: 13px; font-weight: 600; background: var(--fill-2); color: var(--ink-3); }
+.chip i { width: 9px; height: 9px; border-radius: 5px; }
+.chip .n { font-weight: 500; opacity: .75; }
+#cards { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+#cards:empty { display: none; }
+.card { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 12px 14px; border-radius: 20px; background: #fff; box-shadow: 0 0 0 .5px rgba(30,40,50,.06), 0 2px 8px rgba(30,40,50,.06); transition: box-shadow .25s; }
+.card.active { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(20,30,40,.12); }
+.card .row { display: flex; align-items: center; gap: 8px; }
+.card .tagchip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 13px; font-size: 12.5px; font-weight: 650; }
+.card .tagchip i { width: 9px; height: 9px; border-radius: 5px; }
+.card .pg { margin-left: auto; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.card .go { width: 36px; height: 36px; border: 0; border-radius: 18px; background: var(--fill-2); color: var(--ink-3); display: flex; align-items: center; justify-content: center; }
+.card .go .icon { width: 16px; height: 16px; stroke-width: 2.1; }
+.card .quote { border: 0; background: transparent; padding: 0; text-align: left; font-size: 13px; line-height: 1.5; color: #4a545d; font-style: italic; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card textarea { width: 100%; resize: none; border: 0; outline: none; padding: 8px 10px; border-radius: 14px; background: rgba(118,118,128,.07); font-size: 15px; line-height: 1.5; color: var(--ink); field-sizing: content; min-height: 58px; -webkit-user-select: text; user-select: text; }

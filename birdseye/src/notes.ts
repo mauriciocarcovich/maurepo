@@ -2,6 +2,7 @@
 // Geometry is kept as fractions of the screen so it keeps its proportions on any screen.
 import { clamp, type Rect } from "./geometry";
 import type { PanelGeom } from "./store";
+import { TAGS, TAG_ORDER, type Annotation, type Tag } from "./annotations";
 
 const MIN_W = 280;
 const MIN_H = 240;
@@ -13,6 +14,8 @@ export interface NotesHooks {
   onText(text: string): void;
   onLinkedOpen(open: boolean): void;
   onExport(): void;
+  onGo(id: string): void;
+  onNoteText(id: string, text: string): void;
 }
 
 export class NotesPanel {
@@ -24,6 +27,13 @@ export class NotesPanel {
   private linkedToggle = byId("linkedToggle");
   private linkedList = byId("linkedList");
   private kbShift = 0;
+  private linked: Annotation[] = [];
+  private filter: Tag | null = null;
+  private peek: string | null = null;
+  private active: string | null = null;
+  private cardEls = new Map<string, HTMLElement>();
+  private cardsBox = byId("cards");
+  private chipsBox = byId("linkedChips");
 
   constructor(geom: PanelGeom, text: string, private linkedOpen: boolean, private hooks: NotesHooks) {
     this.geom = { ...geom };
@@ -78,10 +88,94 @@ export class NotesPanel {
     this.layout();
   }
 
+  /** Annotations with notes, shown as cards under "Linked passages". */
+  setLinked(all: Annotation[]) {
+    this.linked = all.filter((a) => a.note !== null).sort((a, b) => a.page - b.page || a.start - b.start);
+    if (this.peek && !this.linked.some((a) => a.id === this.peek)) this.peek = null;
+    this.renderLinked();
+  }
+
+  /** Bring a linked note into view (opening the panel, or peeking at one card if the list is hidden). */
+  focusCard(id: string, focusText = false) {
+    if (this.geom.min) this.setMinimized(false);
+    this.filter = null;
+    if (!this.linkedOpen) this.peek = id;
+    this.active = id;
+    this.renderLinked();
+    const el = this.cardEls.get(id);
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      if (focusText) setTimeout(() => (el.querySelector("textarea") as HTMLTextAreaElement | null)?.focus(), 250);
+    }
+  }
+
   private renderLinked() {
-    this.linkedToggle.setAttribute("aria-expanded", String(this.linkedOpen));
-    byId("linkedAct").textContent = this.linkedOpen ? "Hide" : "Show";
-    this.linkedList.hidden = !this.linkedOpen;
+    const open = this.linkedOpen;
+    this.linkedToggle.setAttribute("aria-expanded", String(open));
+    byId("linkedAct").textContent = open ? "Hide" : this.peek ? "Show all" : "Show";
+    byId("linkedCount").textContent = String(this.linked.length);
+    const box = byId("linked");
+    box.classList.toggle("open", open);
+    box.classList.toggle("peek", !open && !!this.peek);
+    this.linkedList.hidden = !(open && this.linked.length === 0);
+
+    // Filter chips
+    this.chipsBox.hidden = !open || this.linked.length === 0;
+    if (!this.chipsBox.hidden) {
+      this.chipsBox.replaceChildren(...TAG_ORDER.map((t) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        const on = this.filter === t;
+        b.setAttribute("aria-pressed", String(on));
+        if (on) { b.style.background = TAGS[t].chipBg; b.style.color = TAGS[t].chipInk; b.style.boxShadow = `inset 0 0 0 1.5px ${TAGS[t].dot}`; }
+        b.innerHTML = `<i style="background:${TAGS[t].dot}"></i>${TAGS[t].label}<span class="n">${this.linked.filter((a) => a.tag === t).length}</span>`;
+        b.onclick = () => { this.filter = on ? null : t; this.renderLinked(); };
+        return b;
+      }));
+    }
+
+    const shown = open ? this.linked.filter((a) => !this.filter || a.tag === this.filter)
+      : this.peek ? this.linked.filter((a) => a.id === this.peek) : [];
+    // Keyed update so typing in a card never loses focus.
+    const keep = new Set(shown.map((a) => a.id));
+    for (const [id, el] of this.cardEls) if (!keep.has(id)) { el.remove(); this.cardEls.delete(id); }
+    shown.forEach((a, idx) => {
+      let el = this.cardEls.get(a.id);
+      if (!el) { el = this.makeCard(a.id); this.cardEls.set(a.id, el); }
+      this.fillCard(el, a);
+      if (this.cardsBox.children[idx] !== el) this.cardsBox.insertBefore(el, this.cardsBox.children[idx] ?? null);
+    });
+  }
+
+  private makeCard(id: string) {
+    const el = document.createElement("article");
+    el.className = "card";
+    el.dataset.card = id;
+    el.innerHTML = `<div class="row"><span class="tagchip"><i></i><span class="tl"></span></span><span class="pg"></span>
+      <button type="button" class="go" aria-label="Show passage on canvas"><svg class="icon"><use href="#i-go"/></svg></button></div>
+      <button type="button" class="quote"></button>
+      <textarea rows="2" aria-label="Note on this passage" placeholder="Add a thought…" spellcheck="true"></textarea>`;
+    const go = () => { this.active = id; this.renderLinked(); this.hooks.onGo(id); };
+    (el.querySelector(".go") as HTMLElement).onclick = go;
+    (el.querySelector(".quote") as HTMLElement).onclick = go;
+    const ta = el.querySelector("textarea")!;
+    ta.addEventListener("input", () => this.hooks.onNoteText(id, ta.value));
+    return el;
+  }
+
+  private fillCard(el: HTMLElement, a: Annotation) {
+    const t = TAGS[a.tag];
+    const chip = el.querySelector(".tagchip") as HTMLElement;
+    chip.style.background = t.chipBg;
+    chip.style.color = t.chipInk;
+    (chip.querySelector("i") as HTMLElement).style.background = t.dot;
+    chip.querySelector(".tl")!.textContent = t.label;
+    el.querySelector(".pg")!.textContent = `p. ${a.page + 1}`;
+    el.querySelector(".quote")!.textContent = `“${a.quote}”`;
+    const ta = el.querySelector("textarea")!;
+    if (document.activeElement !== ta && ta.value !== (a.note ?? "")) ta.value = a.note ?? "";
+    el.classList.toggle("active", this.active === a.id);
   }
 
   private bind() {
@@ -146,6 +240,7 @@ export class NotesPanel {
     byId("exportBtn").addEventListener("click", () => this.hooks.onExport());
     this.linkedToggle.addEventListener("click", () => {
       this.linkedOpen = !this.linkedOpen;
+      this.peek = null;
       this.renderLinked();
       this.hooks.onLinkedOpen(this.linkedOpen);
     });
@@ -156,7 +251,7 @@ export class NotesPanel {
     const vv = window.visualViewport;
     if (vv) {
       const onVV = () => {
-        const focused = document.activeElement === this.text;
+        const focused = this.el.contains(document.activeElement) && document.activeElement?.tagName === "TEXTAREA";
         const visibleBottom = vv.offsetTop + vv.height;
         const b = this.box();
         const overflow = b.y + b.h - (visibleBottom - MARGIN);

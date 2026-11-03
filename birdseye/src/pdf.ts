@@ -74,3 +74,20 @@ export function releaseCanvas(c: HTMLCanvasElement) {
   c.width = 0;
   c.height = 0;
 }
+
+/** The title stored inside the PDF, if any. */
+export async function pdfTitle(doc: PDFDocumentProxy): Promise<string | null> {
+  try {
+    const { info } = (await doc.getMetadata()) as { info?: { Title?: string } };
+    const t = info?.Title?.trim();
+    return t && t.length > 1 ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** File names like "bd522efaedb92a53…pdf" or "download.pdf" say nothing about the document. */
+export function meaninglessName(name: string) {
+  const base = name.replace(/\.pdf$/i, "");
+  return /^[0-9a-f_-]{16,}$/i.test(base) || /^(download|document|file|untitled|pdf)(\s*\(\d+\))?$/i.test(base);
+}

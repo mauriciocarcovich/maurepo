@@ -29,11 +29,23 @@ export interface BoardHooks {
   onFirstGesture(): void;
 }
 
+/** Text selection, driven by the board's gestures (see Annotator). */
+export interface SelectionHooks {
+  start(page: number, pt: { x: number; y: number }): void;
+  move(pt: { x: number; y: number }): void;
+  end(): void;
+  cancel(): void;
+  /** Return true if the tap was handled (e.g. opened a highlight). */
+  tap(target: Element | null, page: number | null, pt: { x: number; y: number } | null, selecting: boolean, zoomedIn: boolean): boolean;
+}
+
 export interface Stats { tiles: number; tileMP: number; lastRenderMs: number; thumbs: number; pages: number; renders: number }
 
 export class Board {
   cam: Camera = { s: 1, tx: 0, ty: 0 };
   layout: Layout | null = null;
+  mode: "pan" | "select" = "pan";
+  selection: SelectionHooks | null = null;
   stats: Stats = { tiles: 0, tileMP: 0, lastRenderMs: 0, thumbs: 0, pages: 0, renders: 0 };
   private doc: PDFDocumentProxy | null = null;
   private docId = "";
@@ -169,6 +181,31 @@ export class Board {
   }
   restoreView(v: { cx: number; cy: number; s: number }) { this.setCamera(centerOn(v.cx, v.cy, v.s, this.hooks.region())); }
 
+  pageEl(i: number): HTMLElement | null { return this.views[i]?.el ?? null; }
+
+  /** Pages currently on screen. */
+  visiblePages(): number[] {
+    if (!this.layout) return [];
+    const vis = this.visible();
+    return this.layout.pages.map((r, i) => (intersect(r, vis) ? i : -1)).filter((i) => i >= 0);
+  }
+
+  /** Move so world point (wx, wy) sits in the middle of the free region. */
+  flyTo(wx: number, wy: number, s = this.cam.s) { this.setCamera(centerOn(wx, wy, s, this.hooks.region()), true); }
+
+  get zoomedIn() { return this.cam.s >= (this.pageScale() ?? 1) * 0.6; }
+
+  private pageAt(target: EventTarget | null): number | null {
+    const el = (target as Element | null)?.closest?.(".page") as HTMLElement | null;
+    return el ? Number(el.dataset.i) : null;
+  }
+
+  /** Screen point → page-local world units. */
+  toPage(i: number, p: { x: number; y: number }) {
+    const r = this.layout!.pages[i];
+    return { x: (p.x - this.cam.tx) / this.cam.s - r.x, y: (p.y - this.cam.ty) / this.cam.s - r.y };
+  }
+
   // ---------- rendering ----------
 
   private visible(): Rect { return visibleWorld(this.cam, this.view); }
@@ -287,7 +324,7 @@ export class Board {
       if (pass !== this.renderPass) { releaseCanvas(canvas); return; }
       canvas.style.cssText = `left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px`;
       this.dropTile(v);
-      v.el.insertBefore(canvas, v.el.lastChild);
+      v.img.after(canvas);
       v.tile = { canvas, k, rect };
       this.stats.lastRenderMs = Math.round(performance.now() - t0);
       this.stats.renders++;
@@ -324,6 +361,9 @@ export class Board {
     let downTarget: EventTarget | null = null;
     let samples: { x: number; y: number; t: number }[] = [];
     let inertia = 0;
+    let selPage: number | null = null; // page being selected on, while selecting
+    let selecting = false; // this pointer sequence selects text instead of panning
+    let downType = "";
 
     const local = (e: { clientX: number; clientY: number }) => {
       const r = vp.getBoundingClientRect();
@@ -350,8 +390,17 @@ export class Board {
         start = { ...p, t: performance.now() };
         moved = false;
         downTarget = e.target;
+        downType = e.pointerType;
         samples = [{ ...p, t: start.t }];
-      } else moved = true;
+        selPage = null;
+        // Select text mode, or an Apple Pencil in any mode, selects instead of panning.
+        selecting = !!this.selection && (this.mode === "select" || e.pointerType === "pen") && this.pageAt(e.target) != null;
+      } else {
+        moved = true;
+        if (selPage != null) this.selection?.cancel();
+        selPage = null;
+        selecting = false; // a second finger always pans and zooms
+      }
       last = centroid();
       lastDist = ptrs.size > 1 ? spread() : 0;
       vp.classList.add("dragging");
@@ -361,9 +410,18 @@ export class Board {
       if (!ptrs.has(e.pointerId)) return;
       ptrs.set(e.pointerId, local(e));
       const c = centroid();
-      if (start && Math.hypot(c.x - start.x, c.y - start.y) > 7) moved = true;
+      if (start && Math.hypot(c.x - start.x, c.y - start.y) > (selecting ? 4 : 7)) moved = true;
       if (!moved || !last) return;
       first();
+      if (selecting && ptrs.size === 1) {
+        if (selPage == null) {
+          selPage = this.pageAt(downTarget);
+          if (selPage != null) this.selection!.start(selPage, this.toPage(selPage, start!));
+        }
+        if (selPage != null) this.selection!.move(this.toPage(selPage, c));
+        last = c;
+        return;
+      }
       let cam = { ...this.cam };
       if (ptrs.size >= 2) {
         const d = spread();
@@ -389,8 +447,22 @@ export class Board {
         return;
       }
       vp.classList.remove("dragging");
+      if (selPage != null) {
+        if (e.type === "pointercancel") this.selection?.cancel(); else this.selection?.end();
+        selPage = null;
+        return;
+      }
       if (e.type === "pointercancel") return;
-      if (!moved) { first(); this.tap(downTarget, local(e)); return; }
+      if (!moved) {
+        first();
+        const p = local(e);
+        const page = this.pageAt(downTarget);
+        const sel = this.mode === "select" || downType === "pen";
+        if (this.selection?.tap(downTarget as Element | null, page, page != null ? this.toPage(page, p) : null, sel, this.zoomedIn)) return;
+        if (sel) return;
+        this.tap(downTarget, p);
+        return;
+      }
       // Glide after a flick.
       const a = samples[0], b = samples[samples.length - 1];
       if (a && b && b.t - a.t > 10) {
@@ -437,16 +509,17 @@ export class Board {
     };
     vp.addEventListener("gesturestart", gs as EventListener);
     vp.addEventListener("gesturechange", gc as EventListener);
-    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    // Never let Safari zoom the whole web page: only the canvas zooms.
+    for (const t of ["gesturestart", "gesturechange", "gestureend"]) document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+    document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
 
     // Double-tap while reading returns to the bird's-eye view.
     let lastTapAt = 0;
     this.tap = (target, p) => {
       const now = performance.now();
       const pageEl = (target as Element | null)?.closest?.(".page") as HTMLElement | null;
-      const ps = this.pageScale() ?? 1;
-      const zoomed = this.cam.s >= ps * 0.6;
-      if (zoomed) {
+      if (this.zoomedIn) {
         if (now - lastTapAt < 320) { this.fit(); lastTapAt = 0; }
         else lastTapAt = now;
         return;

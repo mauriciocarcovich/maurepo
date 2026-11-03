@@ -141,3 +141,34 @@ export async function sha256(buf: ArrayBuffer): Promise<string> {
   }
   return `fnv-${(h1 >>> 0).toString(16)}-${(h2 >>> 0).toString(16)}-${a.length}`;
 }
+
+// ---------- annotations (per document) ----------
+
+const annTimers = new Map<string, number>();
+const annPending = new Map<string, unknown[]>();
+
+export async function loadAnnotations<T>(docId: string): Promise<T[]> {
+  try { return ((await (await db()).get("kv", `ann:${docId}`)) as T[] | undefined) ?? []; } catch { return []; }
+}
+
+export function saveAnnotations(docId: string, list: unknown[], delay = 300) {
+  annPending.set(docId, list);
+  clearTimeout(annTimers.get(docId));
+  annTimers.set(docId, window.setTimeout(() => void flushAnnotations(docId), delay));
+}
+
+export async function flushAnnotations(docId?: string) {
+  const ids = docId ? [docId] : [...annPending.keys()];
+  for (const id of ids) {
+    const list = annPending.get(id);
+    if (!list) continue;
+    annPending.delete(id);
+    clearTimeout(annTimers.get(id));
+    try {
+      await (await db()).put("kv", structuredClone(list), `ann:${id}`);
+      listeners.forEach((f) => f(true));
+    } catch {
+      listeners.forEach((f) => f(false));
+    }
+  }
+}
