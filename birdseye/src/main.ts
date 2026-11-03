@@ -2,10 +2,11 @@ import "./styles.css";
 import { Board } from "./board";
 import { bestLayout, freeRegion, layoutPages, type Camera, type Rect } from "./geometry";
 import { NotesPanel } from "./notes";
-import { closePdf, openPdf, pageSizes, type PDFDocumentProxy } from "./pdf";
+import { closePdf, meaninglessName, openPdf, pageSizes, pdfTitle, type PDFDocumentProxy } from "./pdf";
+import { Annotator, TAGS, type Annotation } from "./annotations";
 import {
-  flushWorkspace, getDoc, loadWorkspace, onSaveState, putDoc, requestPersistence, saveWorkspace, sha256,
-  type DocMeta, type Workspace,
+  flushAnnotations, flushWorkspace, getDoc, loadAnnotations, loadWorkspace, onSaveState, putDoc, requestPersistence,
+  saveAnnotations, saveWorkspace, sha256, type DocMeta, type Workspace,
 } from "./store";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -18,6 +19,8 @@ let notes: NotesPanel;
 let board: Board;
 let doc: PDFDocumentProxy | null = null;
 let meta: DocMeta | null = null;
+let title = "";
+let annot: Annotator;
 
 function region(): Rect {
   const view = { w: window.innerWidth, h: window.innerHeight };
@@ -51,10 +54,22 @@ function updateChrome() {
 }
 
 function setDocLabel() {
-  $("docTitle").textContent = meta ? meta.name.replace(/\.pdf$/i, "") : "Bird’s-Eye";
+  $("docTitle").textContent = meta ? title : "Bird’s-Eye";
   $("docSub").textContent = meta ? `${meta.pageSizes.length} pages · Bird’s-eye view` : "Open a PDF to begin";
   $("empty").hidden = !!meta;
-  document.title = meta ? `${meta.name.replace(/\.pdf$/i, "")} — Bird’s-Eye` : "Bird’s-Eye";
+  document.title = meta ? `${title} — Bird’s-Eye` : "Bird’s-Eye";
+}
+
+function setMode(m: "pan" | "select") {
+  board.mode = m;
+  $("modePan").setAttribute("aria-pressed", String(m === "pan"));
+  $("modeSelect").setAttribute("aria-pressed", String(m === "select"));
+  document.body.classList.toggle("select-mode", m === "select");
+  $("hint").textContent = m === "select"
+    ? "Drag across text to highlight · Tap a word · Two fingers still pan and zoom"
+    : "Drag to pan · Pinch to zoom · Tap a page to read it · Double-tap to return";
+  $("hint").classList.remove("gone");
+  if (m === "select" && !board.zoomedIn && meta) toast("Zoom in on a page to select text comfortably.");
 }
 
 // ---------- documents ----------
@@ -70,7 +85,15 @@ async function showDocument(m: DocMeta, file: Blob, restore: boolean) {
   ws.cols = { ...ws.cols, [m.id]: layout.cols };
   await board.setDocument(doc, m.id, layout);
   void closePdf(old);
+  const list = await loadAnnotations<Annotation>(m.id);
+  annot.setDocument(doc, list);
+  notes.setLinked(list);
+  title = m.name.replace(/\.pdf$/i, "");
   setDocLabel();
+  if (meaninglessName(m.name)) {
+    const t = await pdfTitle(doc);
+    if (t) { title = t; setDocLabel(); }
+  }
   if (restore && ws.view) board.restoreView(ws.view);
   else board.fit(false);
   updateChrome();
@@ -117,15 +140,26 @@ function download(name: string, data: BlobPart, type: string) {
 }
 
 const stamp = () => new Date().toISOString().slice(0, 10);
-const baseName = () => (meta?.name ?? "Notes").replace(/\.pdf$/i, "");
+const baseName = () => (meta ? title : "Notes").replace(/[\\/:*?"<>|]/g, "-");
 
 function exportMarkdown() {
-  const md = `# ${baseName()} — Notes\n\n_${stamp()}${meta ? ` · ${meta.pageSizes.length} pages` : ""}_\n\n${notes.value.trim()}\n`;
+  const sorted = [...annot.list].sort((a, b) => a.page - b.page || a.start - b.start);
+  const linked = sorted.filter((a) => a.note !== null);
+  const plain = sorted.filter((a) => a.note === null);
+  let md = `# ${baseName()} — Notes\n\n_${stamp()}${meta ? ` · ${meta.pageSizes.length} pages` : ""}_\n\n${notes.value.trim()}\n`;
+  if (linked.length) {
+    md += `\n## Linked passages\n`;
+    for (const a of linked) md += `\n**p. ${a.page + 1} · ${TAGS[a.tag].label}**\n\n> ${a.quote}\n${a.note?.trim() ? `\n${a.note.trim()}\n` : ""}`;
+  }
+  if (plain.length) {
+    md += `\n## Highlights\n\n`;
+    for (const a of plain) md += `- p. ${a.page + 1} · ${TAGS[a.tag].label}: “${a.quote}”\n`;
+  }
   download(`${baseName()} — Notes.md`, md, "text/markdown;charset=utf-8");
 }
 
 function exportBackup() {
-  const data = { app: "birdseye", version: 1, exportedAt: new Date().toISOString(), document: meta, workspace: { ...ws, general: notes.value } };
+  const data = { app: "birdseye", version: 2, exportedAt: new Date().toISOString(), document: meta, workspace: { ...ws, general: notes.value }, annotations: annot.list };
   download(`${baseName()} — Bird’s-Eye backup ${stamp()}.json`, JSON.stringify(data, null, 2), "application/json");
 }
 
@@ -141,6 +175,10 @@ async function restoreBackup(file: File) {
     notes.setText(ws.general);
     save(0);
     const same = meta && data.document?.id === meta.id;
+    if (Array.isArray(data.annotations) && data.document?.id) {
+      saveAnnotations(data.document.id, data.annotations, 0);
+      if (same) { annot.setDocument(doc!, data.annotations); notes.setLinked(data.annotations); }
+    }
     toast(same || !data.document ? "Notes restored." : `Notes restored. Open “${data.document.name}” to see its pages.`, 4500);
   } catch {
     toast("That file isn’t a Bird’s-Eye backup.");
@@ -172,6 +210,13 @@ async function boot() {
     onText() { $("saveText").textContent = "Saving…"; save(); },
     onLinkedOpen(open) { ws.linkedOpen = open; save(); },
     onExport: exportMarkdown,
+    onGo(id) {
+      const c = annot.center(id);
+      if (!c) return;
+      board.flyTo(c.x, c.y, Math.max(board.cam.s, board.pageScale(c.page) ?? board.cam.s));
+      setTimeout(() => annot.flash(id), 560);
+    },
+    onNoteText(id, text) { annot.update(id, { note: text }); },
   });
 
   onSaveState((ok) => {
@@ -183,14 +228,30 @@ async function boot() {
   let saveViewTimer = 0;
   board = new Board($("viewport"), $("world"), {
     region,
-    onCamera: (_c: Camera) => updateChrome(),
+    onCamera: (_c: Camera) => { updateChrome(); if (annot?.popoverOpen) annot.placePopover(); },
     onSettle: () => {
+      if (board.zoomedIn) annot.preload(board.visiblePages());
       clearTimeout(saveViewTimer);
       saveViewTimer = window.setTimeout(() => { if (meta) { ws.view = board.viewState; save(); } }, 400);
       renderDebug();
     },
     onFirstGesture: () => $("hint").classList.add("gone"),
   });
+
+  annot = new Annotator(board, {
+    onChange(list) { if (meta) saveAnnotations(meta.id, list); notes.setLinked(list); },
+    onNoteRequested(id) { notes.focusCard(id, true); },
+    onPinTapped(id) { notes.focusCard(id); },
+  });
+  board.selection = {
+    start: (p, pt) => annot.selectStart(p, pt),
+    move: (pt) => annot.selectMove(pt),
+    end: () => annot.selectEnd(),
+    cancel: () => annot.selectCancel(),
+    tap: (t, p, pt, sel, z) => annot.tap(t, p, pt, sel, z),
+  };
+  $("modePan").onclick = () => setMode("pan");
+  $("modeSelect").onclick = () => setMode("select");
 
   // Toolbar
   $("zoomIn").onclick = () => board.zoomBy(1.4);
@@ -243,8 +304,8 @@ async function boot() {
   });
 
   window.addEventListener("resize", () => { updateChrome(); });
-  window.addEventListener("pagehide", () => { ws.general = notes.value; save(0); void flushWorkspace(); });
-  document.addEventListener("visibilitychange", () => { if (document.hidden) { ws.general = notes.value; save(0); void flushWorkspace(); } });
+  window.addEventListener("pagehide", () => { ws.general = notes.value; save(0); void flushWorkspace(); void flushAnnotations(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { ws.general = notes.value; save(0); void flushWorkspace(); void flushAnnotations(); } });
 
   setDocLabel();
   updateChrome();
