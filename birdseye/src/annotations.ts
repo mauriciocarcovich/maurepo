@@ -29,6 +29,7 @@ export interface AnnotatorHooks {
   onChange(list: Annotation[]): void;
   onNoteRequested(id: string): void; // "Add note" / "Open note" / pin tapped
   onPinTapped(id: string): void;
+  onRemoved(a: Annotation): void; // offer Undo
 }
 
 /** Extend a selection to whole words at both ends, like iPad text selection. */
@@ -167,6 +168,13 @@ export class Annotator {
     if (this.popFor === id) this.hidePopover();
   }
 
+  /** Put back an annotation removed a moment ago (Undo). */
+  restore(a: Annotation) {
+    if (this.list.some((x) => x.id === a.id)) return;
+    this.list = [...this.list, a];
+    this.changed(a.page);
+  }
+
   private changed(page: number) {
     this.drawPage(page, true);
     this.hooks.onChange(this.list);
@@ -279,7 +287,7 @@ export class Annotator {
       if (!a) return;
       if (b.dataset.tag) { this.lastTag = b.dataset.tag as Tag; this.update(id, { tag: b.dataset.tag as Tag }); }
       else if (b.id === "popU") this.update(id, { underline: !a.underline });
-      else if (b.id === "popDel") this.remove(id);
+      else if (b.id === "popDel") { this.remove(id); this.hooks.onRemoved(a); }
       else if (b.id === "popNote") {
         if (a.note === null) this.update(id, { note: "" });
         this.hidePopover();

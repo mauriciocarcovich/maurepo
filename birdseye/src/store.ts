@@ -9,6 +9,10 @@ export interface DocMeta {
   addedAt: number;
   /** A name the user chose with "Rename document…". */
   title?: string;
+  /** A name found inside the PDF when its file name is meaningless. */
+  autoTitle?: string;
+  /** Last time the document was opened, for ordering the library. */
+  openedAt?: number;
 }
 
 /** Notes panel geometry, stored as fractions of the screen so it survives rotation and browser chrome. */
@@ -18,12 +22,18 @@ export interface Workspace {
   docId: string | null;
   /** Camera as the world point at the screen centre plus a scale, so it restores on any screen size. */
   view: { cx: number; cy: number; s: number } | null;
+  /** Last view of each document, so switching documents returns you to where you were. */
+  views: Record<string, { cx: number; cy: number; s: number }>;
   panel: PanelGeom;
+  /** @deprecated notes are stored per document (note:<id>); kept only to migrate old data. */
   general: string;
   linkedOpen: boolean;
   debug: boolean;
   /** Column count chosen for each document, so its spatial layout never shifts. */
   cols: Record<string, number>;
+  exportGroup?: "page" | "tag";
+  exportHighlights?: boolean;
+  exportGeneral?: boolean;
 }
 
 interface Schema extends DBSchema {
@@ -38,6 +48,7 @@ export const DEFAULT_PANEL: PanelGeom = { fx: 0.02, fy: 0.18, fw: 0.3, fh: 0.63,
 export const DEFAULT_WORKSPACE: Workspace = {
   docId: null,
   view: null,
+  views: {},
   panel: DEFAULT_PANEL,
   general: "",
   linkedOpen: false,
@@ -172,6 +183,72 @@ export async function flushAnnotations(docId?: string) {
     clearTimeout(annTimers.get(id));
     try {
       await (await db()).put("kv", structuredClone(list), `ann:${id}`);
+      listeners.forEach((f) => f(true));
+    } catch {
+      listeners.forEach((f) => f(false));
+    }
+  }
+}
+
+// ---------- library ----------
+
+export async function listDocs(): Promise<DocMeta[]> {
+  try { return await (await db()).getAll("docs"); } catch { return []; }
+}
+
+/** Remove a document and everything stored for it on this device. */
+export async function deleteDoc(id: string) {
+  const d = await db();
+  const tx = d.transaction(["docs", "files", "thumbs", "kv"], "readwrite");
+  const range = IDBKeyRange.bound(`${id}:`, `${id}:\uffff`);
+  await Promise.all([
+    tx.objectStore("docs").delete(id),
+    tx.objectStore("files").delete(id),
+    tx.objectStore("thumbs").delete(range),
+    tx.objectStore("kv").delete(`ann:${id}`),
+    tx.objectStore("kv").delete(`note:${id}`),
+    tx.done,
+  ]);
+}
+
+export async function countAnnotations(id: string): Promise<{ highlights: number; notes: number }> {
+  const list = await loadAnnotations<{ note: string | null }>(id);
+  return { highlights: list.length, notes: list.filter((a) => a.note !== null).length };
+}
+
+export async function storageUsage(): Promise<{ used: number; quota: number } | null> {
+  try {
+    const e = await navigator.storage?.estimate?.();
+    return e && e.usage != null && e.quota != null ? { used: e.usage, quota: e.quota } : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------- general notes (per document) ----------
+
+const noteTimers = new Map<string, number>();
+const notePending = new Map<string, string>();
+
+export async function loadDocNote(docId: string): Promise<string | null> {
+  try { return ((await (await db()).get("kv", `note:${docId}`)) as string | undefined) ?? null; } catch { return null; }
+}
+
+export function saveDocNote(docId: string, text: string, delay = 300) {
+  notePending.set(docId, text);
+  clearTimeout(noteTimers.get(docId));
+  noteTimers.set(docId, window.setTimeout(() => void flushDocNotes(docId), delay));
+}
+
+export async function flushDocNotes(docId?: string) {
+  const ids = docId ? [docId] : [...notePending.keys()];
+  for (const id of ids) {
+    const text = notePending.get(id);
+    if (text == null) continue;
+    notePending.delete(id);
+    clearTimeout(noteTimers.get(id));
+    try {
+      await (await db()).put("kv", text, `note:${id}`);
       listeners.forEach((f) => f(true));
     } catch {
       listeners.forEach((f) => f(false));

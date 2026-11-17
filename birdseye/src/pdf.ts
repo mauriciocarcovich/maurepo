@@ -10,9 +10,19 @@ export type { PDFDocumentProxy, PDFPageProxy, RenderTask };
 
 const tasks = new WeakMap<PDFDocumentProxy, { destroy(): Promise<void> }>();
 
-export async function openPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+export class PasswordCancelled extends Error {}
+
+/** Ask for a password when a PDF is protected; resolves null if the person cancels. */
+export type AskPassword = (retry: boolean) => string | null;
+
+export async function openPdf(data: ArrayBuffer, askPassword?: AskPassword): Promise<PDFDocumentProxy> {
   // PDF.js transfers the buffer to its worker, so hand it a copy and keep ours for storage.
   const task = pdfjs.getDocument({ data: new Uint8Array(data.slice(0)) });
+  task.onPassword = (update: (pw: string) => void, reason: number) => {
+    const pw = askPassword?.(reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD) ?? null;
+    if (pw == null) { void task.destroy(); return; }
+    update(pw);
+  };
   const doc = await task.promise;
   tasks.set(doc, task);
   return doc;

@@ -4,18 +4,19 @@ A local-first canvas for reading and annotating PDFs on iPad and Mac. The whole 
 canvas: pinch and drag to move between a bird’s-eye view of every page and a close reading of a single
 line, while a floating Notes panel stays put on screen.
 
-## What works now (steps 0–2)
+## What it does
 
-- Open a PDF from Files (iPad) or drag one in (Mac). Pages are laid out in a grid sized to the screen.
-- Pinch, drag, flick, trackpad pinch/scroll, keyboard (`+` `-` `0`, arrows). Tap a page to read it,
-  double-tap to return. **Fit all** frames the whole document beside the Notes panel.
-- Level-of-detail rendering: cached thumbnails for the overview, sharp tiles only for what is on screen,
-  capped in memory for iPad Safari.
-- Notes panel: drag, resize from the corner, minimize to a pill. Size and position are stored as
-  fractions of the screen. Linked passages are hidden by default (filled in step 3).
-- Everything is saved on the device (IndexedDB): the PDF, thumbnails, notes, panel and view. Export
-  notes as Markdown; back up and restore the workspace as JSON.
-- Debug overlay (⋯ menu) shows scale, tiles, megapixels and render time — useful when testing on iPad.
+- **Library:** every PDF you open is kept on the device. Tap the document title to switch between
+  documents or delete one; each keeps its own notes, highlights and last view.
+- **Canvas:** pinch, drag and flick between a bird’s-eye view of every page and a single line.
+  Tap a page to read it, double-tap to return; **Fit all** frames the pages beside the Notes panel.
+- **Highlights:** Pan / Select text switch (an Apple Pencil always selects). Four tags — Important,
+  Question, Disagree, Idea — underline, delete (with Undo) and linked notes with pins on the canvas.
+- **Notes panel:** drag, resize, minimize; general notes per document; linked notes hidden until opened.
+- **Search:** ⌘F / Ctrl+F or 🔍 — the document or your notes, with per-page match counts.
+- **Export:** a Markdown brief grouped by page or by tag, with quotes and page references, to copy or
+  download. Workspace backup and restore as JSON.
+- **Works offline** once opened; password-protected PDFs are supported.
 
 ## Develop
 
@@ -31,8 +32,6 @@ npm run build    # static site in dist/
 `.github/workflows/birdseye-pages.yml` builds and publishes `dist/` to GitHub Pages.
 Enable it once in the repository: **Settings → Pages → Source: GitHub Actions**.
 
-## Next
+## Later
 
-3. Text index, Select text mode, highlights, linked notes and pins on the canvas.
-4. Search across the document and notes.
-5. Markdown brief with page references, note tags.
+- OCR for scanned PDFs, several documents on one canvas, sync between devices.

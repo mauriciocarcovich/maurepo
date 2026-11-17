@@ -34,13 +34,14 @@
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></symbol>
   <symbol id="i-open" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6H10l2 2h6.5A1.5 1.5 0 0 1 20 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/></symbol>
 </svg>
 
 <div id="viewport" aria-label="Document canvas. Drag to pan, pinch to zoom."><div id="world"></div></div>
 
 <div id="topLeft">
-  <button id="docBar" class="bar glass" type="button" title="Open a PDF">
+  <button id="docBar" class="bar glass" type="button" title="Library">
     <span class="doc-icon"><svg class="icon"><use href="#i-doc"/></svg></span>
     <span class="doc-text"><span class="doc-title" id="docTitle">Bird’s-Eye</span><span class="doc-sub" id="docSub">No document</span></span>
   </button>
@@ -63,9 +64,10 @@
 </div>
 
 <div id="menu" class="glass" role="menu" hidden>
+  <button type="button" role="menuitem" data-act="library">Library…</button>
   <button type="button" role="menuitem" data-act="open">Open PDF…</button>
   <button type="button" role="menuitem" data-act="rename">Rename document…</button>
-  <button type="button" role="menuitem" data-act="exportMd">Export notes (.md)</button>
+  <button type="button" role="menuitem" data-act="exportMd">Export notes…</button>
   <div class="sep-h" role="separator"></div>
   <button type="button" role="menuitem" data-act="backup">Back up workspace (.json)</button>
   <button type="button" role="menuitem" data-act="restore">Restore backup…</button>
@@ -132,7 +134,24 @@
   <button type="button" class="ib" id="popDel" aria-label="Remove highlight"><svg class="icon" style="width:18px;height:18px"><use href="#i-trash"/></svg></button>
   <button type="button" id="popNote"><svg class="icon" style="width:16px;height:16px;stroke-width:2.4"><use href="#i-plus"/></svg><span id="popNoteLabel">Add note</span></button>
 </div>
-<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button type="button" id="toastAct" hidden></button></div>
+
+<div id="backdrop" hidden></div>
+<section id="library" class="sheet glass" role="dialog" aria-modal="true" aria-labelledby="libTitle" hidden>
+  <header><h2 id="libTitle">Library</h2><button class="primary small" id="libOpen" type="button"><svg class="icon"><use href="#i-plus"/></svg>Open PDF</button><button class="round" type="button" data-close aria-label="Close"><svg class="icon" style="width:16px;height:16px;stroke-width:2.2"><use href="#i-x"/></svg></button></header>
+  <div id="libList" class="sheet-body"></div>
+  <footer id="libFoot"></footer>
+</section>
+<section id="exportSheet" class="sheet glass" role="dialog" aria-modal="true" aria-labelledby="exTitle" hidden>
+  <header><h2 id="exTitle">Export notes</h2><button class="round" type="button" data-close aria-label="Close"><svg class="icon" style="width:16px;height:16px;stroke-width:2.2"><use href="#i-x"/></svg></button></header>
+  <div class="sheet-body ex-body">
+    <div class="ex-row"><span>Group by</span><div class="seg" role="group" aria-label="Group by"><button type="button" data-group="page" aria-pressed="true">Page</button><button type="button" data-group="tag" aria-pressed="false">Tag</button></div></div>
+    <label class="ex-check"><input type="checkbox" id="exHl" checked> Include highlights without notes</label>
+    <label class="ex-check"><input type="checkbox" id="exGen" checked> Include general notes</label>
+    <pre id="exPreview" aria-label="Preview"></pre>
+  </div>
+  <footer><button class="soft-btn big" id="exCopy" type="button">Copy</button><button class="primary small" id="exDownload" type="button">Download .md</button></footer>
+</section>
 <div id="drop" hidden>Drop a PDF to open it</div>
 <pre id="debug" class="glass" hidden></pre>
 
