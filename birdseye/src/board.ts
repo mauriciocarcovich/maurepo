@@ -483,18 +483,25 @@ export class Board {
     vp.addEventListener("pointerup", end);
     vp.addEventListener("pointercancel", end);
 
-    // Trackpad and mouse wheel: pinch (ctrl) zooms, two-finger scroll pans.
+    // Mouse wheel zooms in and out around the pointer (dragging pans). Trackpad pinch zooms too.
+    // Hold Shift to scroll-pan instead.
     vp.addEventListener("wheel", (e) => {
       e.preventDefault();
       cancelAnimationFrame(inertia);
       first();
-      const m = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.view.h : 1;
+      const m = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? this.view.h : 1;
       const p = local(e);
-      if (e.ctrlKey || e.metaKey) {
-        this.setCamera(zoomAt(this.cam, clamp(this.cam.s * Math.exp(-e.deltaY * m * 0.01), this.minScale, this.maxScale), p.x, p.y));
-      } else {
-        this.setCamera({ ...this.cam, tx: this.cam.tx - e.deltaX * m, ty: this.cam.ty - e.deltaY * m });
+      if (e.shiftKey && !e.ctrlKey) {
+        // Shift+wheel: browsers report vertical wheel as horizontal while Shift is held.
+        const dx = e.deltaX || e.deltaY;
+        this.setCamera({ ...this.cam, tx: this.cam.tx - dx * m, ty: this.cam.ty - (e.deltaX ? e.deltaY * m : 0) });
+        return;
       }
+      // Pinch arrives as small ctrl+wheel deltas; a wheel notch is ~100px. Cap each step so one
+      // fast spin can't jump from the overview straight to a single letter.
+      const rate = e.ctrlKey ? 0.01 : 0.0018;
+      const d = clamp(e.deltaY * m * rate, -0.5, 0.5);
+      this.setCamera(zoomAt(this.cam, clamp(this.cam.s * Math.exp(-d), this.minScale, this.maxScale), p.x, p.y));
     }, { passive: false });
 
     // Safari on Mac reports trackpad pinch as gesture events; on iPad, pointers already handle it.

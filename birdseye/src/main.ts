@@ -96,7 +96,7 @@ function setMode(m: "pan" | "select") {
   document.body.classList.toggle("select-mode", m === "select");
   $("hint").textContent = m === "select"
     ? "Drag across text to highlight · Tap a word · Two fingers still pan and zoom"
-    : "Drag to pan · Pinch to zoom · Tap a page to read it · Double-tap to return";
+    : "Drag to pan · Scroll or pinch to zoom · Tap a page to read it · Double-tap to return";
   $("hint").classList.remove("gone");
   if (m === "select" && !board.zoomedIn && meta) toast("Zoom in on a page to select text comfortably.");
 }
