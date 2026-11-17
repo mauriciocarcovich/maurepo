@@ -10,6 +10,17 @@ export type { PDFDocumentProxy, PDFPageProxy, RenderTask };
 
 const tasks = new WeakMap<PDFDocumentProxy, { destroy(): Promise<void> }>();
 
+// Decoders and data PDF.js loads on demand. Without them, scanned pages (JPEG 2000 / JBIG2 images)
+// render blank and PDFs with non-embedded fonts or Asian text lose their text.
+const base = (dir: string) => new URL(`./pdfjs/${dir}/`, document.baseURI).href;
+const RESOURCES = {
+  wasmUrl: base("wasm"),
+  standardFontDataUrl: base("standard_fonts"),
+  cMapUrl: base("cmaps"),
+  cMapPacked: true,
+  iccUrl: base("iccs"),
+};
+
 export class PasswordCancelled extends Error {}
 
 /** Ask for a password when a PDF is protected; resolves null if the person cancels. */
@@ -17,7 +28,7 @@ export type AskPassword = (retry: boolean) => string | null;
 
 export async function openPdf(data: ArrayBuffer, askPassword?: AskPassword): Promise<PDFDocumentProxy> {
   // PDF.js transfers the buffer to its worker, so hand it a copy and keep ours for storage.
-  const task = pdfjs.getDocument({ data: new Uint8Array(data.slice(0)) });
+  const task = pdfjs.getDocument({ data: new Uint8Array(data.slice(0)), ...RESOURCES });
   task.onPassword = (update: (pw: string) => void, reason: number) => {
     const pw = askPassword?.(reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD) ?? null;
     if (pw == null) { void task.destroy(); return; }

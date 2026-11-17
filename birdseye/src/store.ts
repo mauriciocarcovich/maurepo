@@ -125,12 +125,26 @@ export async function getDoc(id: string) {
   return meta && file ? { meta, file } : null;
 }
 
+// Bump when page rendering changes, so cached previews are redrawn (v2: scanned-image decoders).
+const THUMB_VERSION = "v2";
+const thumbKey = (docId: string, page: number) => `${docId}:${THUMB_VERSION}:${page}`;
+
 export async function getThumb(docId: string, page: number) {
-  try { return await (await db()).get("thumbs", `${docId}:${page}`); } catch { return undefined; }
+  try { return await (await db()).get("thumbs", thumbKey(docId, page)); } catch { return undefined; }
 }
 
 export async function putThumb(docId: string, page: number, blob: Blob) {
-  try { await (await db()).put("thumbs", blob, `${docId}:${page}`); } catch { /* cache only */ }
+  try { await (await db()).put("thumbs", blob, thumbKey(docId, page)); } catch { /* cache only */ }
+}
+
+/** Drop previews made by older versions of the renderer. */
+export async function pruneOldThumbs() {
+  try {
+    const d = await db();
+    const tx = d.transaction("thumbs", "readwrite");
+    for (const key of await tx.store.getAllKeys()) if (!String(key).includes(`:${THUMB_VERSION}:`)) await tx.store.delete(key);
+    await tx.done;
+  } catch { /* best effort */ }
 }
 
 /** Ask the browser not to evict our data (Safari otherwise may after a period of no use). */

@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "copy-pdfjs": "node scripts/copy-pdfjs.mjs",
+    "predev": "npm run copy-pdfjs",
     "dev": "vite",
+    "prebuild": "npm run copy-pdfjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run"

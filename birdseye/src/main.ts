@@ -10,7 +10,7 @@ import { largestLine } from "./text";
 import {
   countAnnotations, deleteDoc, flushAnnotations, flushDocNotes, flushWorkspace, getDoc, getThumb, listDocs, loadAnnotations,
   loadDocNote, loadWorkspace, onSaveState, putDoc, requestPersistence, saveAnnotations, saveDocNote, saveWorkspace, sha256,
-  storageUsage, updateDocMeta, type DocMeta, type Workspace,
+  pruneOldThumbs, storageUsage, updateDocMeta, type DocMeta, type Workspace,
 } from "./store";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -496,6 +496,8 @@ async function boot() {
     notes.setText((await loadDocNote("_none")) ?? "");
     if ((await listDocs()).length) void showLibrary();
   }
+
+  void pruneOldThumbs();
 
   // Offline support: the app keeps working without a connection once it has been opened.
   if (import.meta.env.PROD && "serviceWorker" in navigator) {

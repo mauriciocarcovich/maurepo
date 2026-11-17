@@ -1,7 +1,7 @@
 // Offline support. The page is fetched fresh whenever there is a connection (so updates arrive
 // on the next open), and falls back to the cached copy offline. Built assets have hashed names,
 // so they are cached on first use and served from the cache afterwards.
-const CACHE = "birdseye-v1";
+const CACHE = "birdseye-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
     const hit = await caches.match(req);
     if (hit) return hit;
     const res = await fetch(req);
-    if (res.ok && url.pathname.includes("/assets/")) (await caches.open(CACHE)).put(req, res.clone());
+    if (res.ok && (url.pathname.includes("/assets/") || url.pathname.includes("/pdfjs/"))) (await caches.open(CACHE)).put(req, res.clone());
     return res;
   })());
 });
